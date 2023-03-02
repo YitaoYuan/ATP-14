@@ -24,9 +24,14 @@ from tm_api_rpc.ttypes import *
 
 this_dir = os.path.dirname(os.path.abspath(__file__))
 
-fp_ports = ["9/0","10/0","11/0","12/0","13/0","14/0","15/0","16/0","17/0","18/0","19/0"]
+
+# If you find that the port-machine mapping has changed in your environment, 
+# you need to modify "port_of_machine", "single_loopback_port" and "MAC_address_of_machine"
+# in setup.py, as well as "fp_ports" and "loopback_ports" in ptfTest.py.
+
+fp_ports = ["13/0","14/0","12/0","11/0","17/0","16/0","15/0","20/0","19/0"] # worker1-9
 # fp_ports = ["13/0","14/0", "11/0"]
-loopback_ports = ["20/0"]
+loopback_ports = ["22/0"]
 # loopback_ports = ["1/0", "2/0", "3/0", "4/0", "5/0", "6/0", "7/0", "8/0", "25/0"]
 def toInt8(n):
   n = n & 0xff
@@ -77,7 +82,7 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
                     self.pal.pal_port_add(0, i,
                                         pal_port_speed_t.BF_SPEED_100G,
                                         pal_fec_type_t.BF_FEC_TYP_REED_SOLOMON)
-                    self.pal.pal_port_an_set(0, i, 2);
+                    self.pal.pal_port_an_set(0, i, 2)
                     self.pal.pal_port_enable(0, i)
 
 ####################### LOOPBACK ###########################
@@ -97,7 +102,7 @@ class L2Test(pd_base_tests.ThriftInterfaceDataPlane):
 
                 self.pal.pal_port_loopback_mode_set(0, i,
                                     pal_loopback_mod_t.BF_LPBK_MAC_NEAR)
-                self.pal.pal_port_an_set(0, i, 2);
+                self.pal.pal_port_an_set(0, i, 2)
                 self.pal.pal_port_enable(0, i)
                 
             self.conn_mgr.complete_operations(self.sess_hdl)

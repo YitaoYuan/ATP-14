@@ -48,11 +48,14 @@ p4_pd.register_reset_all_register31()
 #     p4_pd.set_egr_action_spec_t(0)
 # )
 
-# first Zero for pending
-port_of_worker = [0, 56, 48, 40, 32, 24, 16, 8, 0, 4]
-single_loopback_port = 20
+# If you find that the port-machine mapping has changed in your environment, 
+# you need to modify "port_of_machine", "single_loopback_port" and "MAC_address_of_machine"
+# in setup.py, as well as "fp_ports" and "loopback_ports" in ptfTest.py.
 
-MAC_address_of_worker = [ "0", 
+port_of_machine = [0, 24, 16, 32, 40, 4, 0, 8, 20, 28]
+single_loopback_port = 36
+
+MAC_address_of_machine = [ "0", 
                           "b8:59:9f:1d:04:f2"
                         , "b8:59:9f:0b:30:72"
                         , "98:03:9b:03:46:50"
@@ -63,68 +66,64 @@ MAC_address_of_worker = [ "0",
                         , "b8:59:9f:b0:2d:18"
                         , "b8:59:9f:b0:2d:58" ]
 
-# first Zero for pending
-# PSs = [0, 9, 8]
-PSs = [0, 9]
+worker = [1, 2, 3, 4, 6, 7, 8, 9]
+PS = [5]
 
-len_workers = len(port_of_worker)
-len_PS = len(PSs)
+len_worker = len(worker)
+len_PS = len(PS)
 
 # Normal Switch traffic
-for i in range(1, len_workers):
+for mid in worker:
     p4_pd.forward_table_add_with_set_egr(
-        p4_pd.forward_match_spec_t(macAddr_to_string(MAC_address_of_worker[i])),
-        p4_pd.set_egr_action_spec_t(port_of_worker[i])
+        p4_pd.forward_match_spec_t(macAddr_to_string(MAC_address_of_machine[mid])),
+        p4_pd.set_egr_action_spec_t(port_of_machine[mid])
     )
-
 
 # P4ML Traffic
 
 # No Pending packet, First time enter switch
-for i in range(1, len_workers - 1):
-    for j in range(1, len_PS):
+for mid in worker:
+    for j in range(len_PS):
         p4_pd.outPort_table_table_add_with_set_egr_and_set_index(
         p4_pd.outPort_table_match_spec_t(
             1 << 16,
-            port_of_worker[i],
+            port_of_machine[mid],
             0,
-            j-1), 
+            j), 
         # app1 -> worker3
         p4_pd.set_egr_and_set_index_action_spec_t(single_loopback_port))
 
 # Not Pending packet, Second time enter switch
-for j in range(1, len_PS):
-    print(j, PSs[j])
+for j in range(len_PS):
+    print(j+1, PS[j])
     p4_pd.outPort_table_table_add_with_set_egr(
     p4_pd.outPort_table_match_spec_t(
         1 << 16,
         single_loopback_port,
         1,
-        j-1), 
+        j), 
     # app1 -> worker3
-    p4_pd.set_egr_action_spec_t(port_of_worker[PSs[j]]))
+    p4_pd.set_egr_action_spec_t(port_of_machine[PS[j]]))
 
 # INGRESSPORT, Index
-# Worker1 to Worker8
-for i in range(1, len_workers - 1):
+for mid in worker:
     p4_pd.drop_table_table_add_with_drop_pkt(
         p4_pd.drop_table_match_spec_t(
-            port_of_worker[i],
+            port_of_machine[mid],
             1)
     )
 
 ####### Server ########
-for j in range(1, len_PS):
+for mid in PS:
     p4_pd.multicast_table_table_add_with_multicast(
         p4_pd.multicast_table_match_spec_t(
             1,
             1 << 16,
-            port_of_worker[PSs[j]],
+            port_of_machine[mid],
             0),
         # multicast app1 -> worker1, 2
         p4_pd.multicast_action_spec_t(999)
     )
-
 
 p4_pd.modify_packet_bitmap_table_table_add_with_modify_packet_bitmap(
     p4_pd.modify_packet_bitmap_table_match_spec_t(1)
@@ -320,6 +319,7 @@ p4_pd.processEntry31_table_add_with_processentry31(
 p4_pd.processEntry31_table_add_with_noequ0_processentry31(
     p4_pd.processEntry31_match_spec_t(hex_to_i32(0), hex_to_i32(0x00000000)), 1
 )
+
 try:
     # TODO: understand it
     # dont know why, but if group = input port,
@@ -338,16 +338,18 @@ You need to restart the driver before running this script for the second time
 
 node_all = mc.node_create(
     rid=999,
-    port_map=devports_to_mcbitmap([56,48,40,32,24,16,8,0]),
+    port_map=devports_to_mcbitmap([port_of_machine[mid] for mid in worker]),
     # port_map=devports_to_mcbitmap([port_of_worker[2], port_of_worker[3], port_of_worker[4],]),
     lag_map=lags_to_mcbitmap(([]))
 )
 mc.associate_node(mcg_all, node_all, xid=0, xid_valid=False)
 
+# YYT: Is these code below really useful???
+
 node1 = mc.node_create(
     rid=998,
     # Not multicast to "0" ( 0 as bg traffic )
-    port_map=devports_to_mcbitmap([56,48,40,32,24,16,8]),
+    port_map=devports_to_mcbitmap([port_of_machine[mid] for mid in {1,2,3,4,6,7,8}]),
     # port_map=devports_to_mcbitmap([56,48,40]),
     lag_map=lags_to_mcbitmap(([]))
 )
@@ -357,11 +359,10 @@ node2 = mc.node_create(
     rid=997,
     # Not multicast to "0" ( 0 as bg traffic )
     # port_map=devports_to_mcbitmap([56,48,40,32,24,16,8]),
-    port_map=devports_to_mcbitmap([24,16,8]),
+    port_map=devports_to_mcbitmap([port_of_machine[mid] for mid in {6,7,8}]),
     lag_map=lags_to_mcbitmap(([]))
 )
 mc.associate_node(mcg2, node2, xid=0, xid_valid=False)
-
 
 conn_mgr.complete_operations()
 
