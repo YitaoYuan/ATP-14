@@ -442,17 +442,25 @@ int main(int argc, char *argv[]) {
     //     UsedSwitchAGTRcount = MAX_AGTR_COUNT;
     num_thread = 12;
 
-    dev_list = ibv_get_device_list(NULL);
+    int dev_num = -1;
+    dev_list = ibv_get_device_list(&dev_num);
     if (!dev_list) {
         perror("Failed to get devices list");
         exit(1);
     }
+    printf("len of dev list: %d\n", dev_num);
 
-    ib_dev = dev_list[1];
+    for(int i = 0; i < dev_num; i++) {
+        if(strcmp(ibv_get_device_name(dev_list[i]), "mlx5_3") == 0) {
+	    ib_dev = dev_list[i];
+	    break;
+	}
+    }
     if (!ib_dev) {
         fprintf(stderr, "IB device not found\n");
         exit(1);
     }
+    printf("use dev: %s\n", ibv_get_device_name(ib_dev));
 
     /* Init Thread */
     workQueue = new ThreadPool(num_thread, [](){});
